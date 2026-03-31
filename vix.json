@@ -1,17 +1,25 @@
 {
   "name": "http",
-  "namespace": "gaspardkirira",
-  "version": "0.1.0",
+  "namespace": "cnerium",
+  "version": "0.1.1",
   "type": "header-only",
   "include": "include",
   "license": "MIT",
-  "description": "A tiny header-only C++ library.",
+  "description": "HTTP primitives for the Cnerium web framework. Provides methods, status codes, headers, request and response objects.",
   "keywords": [
-    "cpp",
-    "header-only",
-    "vix"
+    "http",
+    "web",
+    "framework",
+    "cnerium",
+    "vix",
+    "backend",
+    "request",
+    "response"
   ],
-  "repository": "https://github.com/Gaspardkirira/http",
+  "repository": "https://github.com/cnerium/http",
+  "dependencies": {
+    "@cnerium/json": "^0.2.0"
+  },
   "authors": [
     {
       "name": "Gaspard Kirira",
