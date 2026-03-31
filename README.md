@@ -1,2 +1,7 @@
 # http
-Minimal HTTP primitives including Request and Response abstractions for Cnerium.
+
+Header-only C++ library scaffold.
+
+```bash
+vix tests
+```
