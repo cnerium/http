@@ -28,21 +28,25 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.vix/vix_deps.cmake")
     include("${CMAKE_CURRENT_SOURCE_DIR}/.vix/vix_deps.cmake")
 endif()
 
-if(NOT TARGET json::json AND NOT TARGET json)
-    find_package(cnerium_json CONFIG QUIET)
-    find_package(json CONFIG QUIET)
-endif()
+find_package(cnerium_json CONFIG QUIET)
+find_package(json CONFIG QUIET)
 
 set(CNERIUM_HTTP_JSON_TARGET "")
+
 if(TARGET json::json)
     set(CNERIUM_HTTP_JSON_TARGET json::json)
 elseif(TARGET json)
     set(CNERIUM_HTTP_JSON_TARGET json)
+elseif(TARGET cnerium::json)
+    set(CNERIUM_HTTP_JSON_TARGET cnerium::json)
+elseif(TARGET cnerium_json)
+    set(CNERIUM_HTTP_JSON_TARGET cnerium_json)
 endif()
 
 if(CNERIUM_HTTP_JSON_TARGET STREQUAL "")
     message(FATAL_ERROR
         "cnerium json target not found.\n"
+        "Tried: json::json, json, cnerium::json, cnerium_json\n"
         "Install dependencies with Vix:\n"
         "  vix add @cnerium/json\n"
         "  vix install"
