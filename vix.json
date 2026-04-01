@@ -17,13 +17,16 @@
     "response"
   ],
   "repository": "https://github.com/cnerium/http",
-  "dependencies": {
-    "@cnerium/json": "^0.2.0"
-  },
   "authors": [
     {
       "name": "Gaspard Kirira",
       "github": "Gaspardkirira"
+    }
+  ],
+  "deps": [
+    {
+      "id": "cnerium/json",
+      "version": "0.2.0"
     }
   ]
 }
