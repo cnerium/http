@@ -28,16 +28,13 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.vix/vix_deps.cmake")
     include("${CMAKE_CURRENT_SOURCE_DIR}/.vix/vix_deps.cmake")
 endif()
 
-find_package(cnerium_json CONFIG QUIET)
-find_package(json CONFIG QUIET)
+if(NOT TARGET cnerium::json AND NOT TARGET cnerium_json)
+    find_package(cnerium_json CONFIG QUIET)
+    find_package(json CONFIG QUIET)
+endif()
 
 set(CNERIUM_HTTP_JSON_TARGET "")
-
-if(TARGET json::json)
-    set(CNERIUM_HTTP_JSON_TARGET json::json)
-elseif(TARGET json)
-    set(CNERIUM_HTTP_JSON_TARGET json)
-elseif(TARGET cnerium::json)
+if(TARGET cnerium::json)
     set(CNERIUM_HTTP_JSON_TARGET cnerium::json)
 elseif(TARGET cnerium_json)
     set(CNERIUM_HTTP_JSON_TARGET cnerium_json)
@@ -46,7 +43,6 @@ endif()
 if(CNERIUM_HTTP_JSON_TARGET STREQUAL "")
     message(FATAL_ERROR
         "cnerium json target not found.\n"
-        "Tried: json::json, json, cnerium::json, cnerium_json\n"
         "Install dependencies with Vix:\n"
         "  vix add @cnerium/json\n"
         "  vix install"
@@ -56,34 +52,35 @@ endif()
 # ========================
 # Library (header-only)
 # ========================
-add_library(http INTERFACE)
-add_library(http::http ALIAS http)
+add_library(cnerium_http INTERFACE)
+add_library(cnerium::http ALIAS cnerium_http)
 
-target_compile_features(http INTERFACE cxx_std_20)
+target_compile_features(cnerium_http INTERFACE cxx_std_20)
 
-target_link_libraries(http
+target_link_libraries(cnerium_http
     INTERFACE
         ${CNERIUM_HTTP_JSON_TARGET}
 )
 
-target_include_directories(http INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+target_include_directories(cnerium_http
+    INTERFACE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 # ========================
 # Compiler options
 # ========================
 if(MSVC)
-    target_compile_options(http INTERFACE /W4 /permissive-)
+    target_compile_options(cnerium_http INTERFACE /W4 /permissive-)
 else()
-    target_compile_options(http INTERFACE -Wall -Wextra -Wpedantic)
+    target_compile_options(cnerium_http INTERFACE -Wall -Wextra -Wpedantic)
 endif()
 
 # ========================
 # Target properties
 # ========================
-set_target_properties(http PROPERTIES
+set_target_properties(cnerium_http PROPERTIES
     EXPORT_NAME http
 )
 
@@ -102,9 +99,17 @@ if(CNERIUM_HTTP_BUILD_TESTS)
     enable_testing()
 
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_basic.cpp")
-        add_executable(http_basic_test tests/test_basic.cpp)
-        target_link_libraries(http_basic_test PRIVATE http::http)
-        add_test(NAME http.basic COMMAND http_basic_test)
+        add_executable(cnerium_http_test_basic tests/test_basic.cpp)
+        target_link_libraries(cnerium_http_test_basic PRIVATE cnerium::http)
+        target_compile_features(cnerium_http_test_basic PRIVATE cxx_std_20)
+
+        if(MSVC)
+            target_compile_options(cnerium_http_test_basic PRIVATE /W4 /permissive-)
+        else()
+            target_compile_options(cnerium_http_test_basic PRIVATE -Wall -Wextra -Wpedantic)
+        endif()
+
+        add_test(NAME cnerium_http.basic COMMAND cnerium_http_test_basic)
     endif()
 endif()
 
@@ -112,7 +117,7 @@ endif()
 # Summary
 # ========================
 message(STATUS "------------------------------------------------------")
-message(STATUS "cnerium http configured (${PROJECT_VERSION})")
+message(STATUS "cnerium::http configured (${PROJECT_VERSION})")
 message(STATUS "JSON target:     ${CNERIUM_HTTP_JSON_TARGET}")
 message(STATUS "Include dir:     ${CMAKE_CURRENT_SOURCE_DIR}/include")
 message(STATUS "Build tests:     ${CNERIUM_HTTP_BUILD_TESTS}")
