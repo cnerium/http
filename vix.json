@@ -1,7 +1,7 @@
 {
   "name": "http",
   "namespace": "cnerium",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "header-only",
   "include": "include",
   "license": "MIT",
@@ -26,7 +26,7 @@
   "deps": [
     {
       "id": "cnerium/json",
-      "version": "0.3.0"
+      "version": "0.4.0"
     }
   ]
 }

@@ -11,8 +11,8 @@ include(GNUInstallDirs)
 # ========================
 # Options
 # ========================
-option(CNERIUM_HTTP_BUILD_TESTS "Build http tests" ON)
-option(CNERIUM_HTTP_BUILD_EXAMPLES "Build http examples" ON)
+option(CNERIUM_HTTP_BUILD_TESTS "Build http tests" OFF)
+option(CNERIUM_HTTP_BUILD_EXAMPLES "Build http examples" OFF)
 
 # ========================
 # Global settings
@@ -28,7 +28,10 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.vix/vix_deps.cmake")
     include("${CMAKE_CURRENT_SOURCE_DIR}/.vix/vix_deps.cmake")
 endif()
 
-if(NOT TARGET cnerium::json AND NOT TARGET cnerium_json)
+if(NOT TARGET cnerium::json
+   AND NOT TARGET cnerium_json
+   AND NOT TARGET json::json
+   AND NOT TARGET json)
     find_package(cnerium_json CONFIG QUIET)
     find_package(json CONFIG QUIET)
 endif()
@@ -38,6 +41,10 @@ if(TARGET cnerium::json)
     set(CNERIUM_HTTP_JSON_TARGET cnerium::json)
 elseif(TARGET cnerium_json)
     set(CNERIUM_HTTP_JSON_TARGET cnerium_json)
+elseif(TARGET json::json)
+    set(CNERIUM_HTTP_JSON_TARGET json::json)
+elseif(TARGET json)
+    set(CNERIUM_HTTP_JSON_TARGET json)
 endif()
 
 if(CNERIUM_HTTP_JSON_TARGET STREQUAL "")
