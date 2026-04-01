@@ -2,7 +2,7 @@
  * @file Method.hpp
  * @brief cnerium::http — HTTP method definitions
  *
- * @version 0.1.0
+ * @version 0.2.0
  * @author Gaspard Kirira
  * @copyright (c) 2026 Gaspard Kirira
  * @license MIT
@@ -13,6 +13,17 @@
  *
  * Designed for high-performance routing and request handling.
  *
+ * Responsibilities:
+ *   - define supported HTTP request methods
+ *   - convert Method values to uppercase string names
+ *   - parse method tokens without allocation
+ *   - expose small semantic helpers for HTTP behavior
+ *
+ * Notes:
+ *   - Parsing is case-sensitive and expects uppercase method names
+ *   - Unknown methods map to Method::Unknown
+ *   - Semantic helpers follow common HTTP expectations
+ *
  * Usage:
  * @code
  *   using namespace cnerium::http;
@@ -21,13 +32,14 @@
  *   std::string_view name = to_string(m); // "GET"
  *
  *   Method parsed = method_from_string("POST");
+ *   bool safe = is_safe(Method::Head);
  * @endcode
  */
 
 #pragma once
 
-#include <string_view>
 #include <cstdint>
+#include <string_view>
 
 #if defined(__GNUC__) || defined(__clang__)
 #define CNERIUM_LIKELY(x) __builtin_expect(!!(x), 1)
@@ -42,9 +54,9 @@ namespace cnerium::http
   /**
    * @brief HTTP request method.
    *
-   * Covers all standard methods defined in RFC 9110.
+   * Covers the standard methods currently supported by the framework.
    */
-  enum class Method : uint8_t
+  enum class Method : std::uint8_t
   {
     Get,
     Post,
@@ -61,12 +73,12 @@ namespace cnerium::http
   /**
    * @brief Convert Method to its string representation.
    *
-   * @param m HTTP method enum
+   * @param method HTTP method enum
    * @return std::string_view Uppercase method name
    */
-  [[nodiscard]] constexpr std::string_view to_string(Method m) noexcept
+  [[nodiscard]] constexpr std::string_view to_string(Method method) noexcept
   {
-    switch (m)
+    switch (method)
     {
     case Method::Get:
       return "GET";
@@ -86,6 +98,7 @@ namespace cnerium::http
       return "TRACE";
     case Method::Connect:
       return "CONNECT";
+    case Method::Unknown:
     default:
       return "UNKNOWN";
     }
@@ -96,45 +109,49 @@ namespace cnerium::http
    *
    * Fast comparison without allocation.
    *
-   * @param s Input string (case-sensitive, expected uppercase)
-   * @return Method enum (Unknown if not recognized)
+   * Parsing is case-sensitive and expects uppercase method names.
+   *
+   * @param text Input string
+   * @return Method enum, or Method::Unknown if not recognized
    */
-  [[nodiscard]] constexpr Method method_from_string(std::string_view s) noexcept
+  [[nodiscard]] constexpr Method method_from_string(std::string_view text) noexcept
   {
-    // Fast length-based dispatch (important for perf)
-    switch (s.size())
+    switch (text.size())
     {
     case 3:
-      if (s == "GET")
+      if (text == "GET")
         return Method::Get;
-      if (s == "PUT")
+      if (text == "PUT")
         return Method::Put;
       break;
 
     case 4:
-      if (s == "POST")
+      if (text == "POST")
         return Method::Post;
-      if (s == "HEAD")
+      if (text == "HEAD")
         return Method::Head;
       break;
 
     case 5:
-      if (s == "PATCH")
+      if (text == "PATCH")
         return Method::Patch;
-      if (s == "TRACE")
+      if (text == "TRACE")
         return Method::Trace;
       break;
 
     case 6:
-      if (s == "DELETE")
+      if (text == "DELETE")
         return Method::Delete;
       break;
 
     case 7:
-      if (s == "OPTIONS")
+      if (text == "OPTIONS")
         return Method::Options;
-      if (s == "CONNECT")
+      if (text == "CONNECT")
         return Method::Connect;
+      break;
+
+    default:
       break;
     }
 
@@ -142,14 +159,25 @@ namespace cnerium::http
   }
 
   /**
+   * @brief Return true if the method is known.
+   *
+   * @param method HTTP method
+   * @return true if method is not Unknown
+   */
+  [[nodiscard]] constexpr bool is_known(Method method) noexcept
+  {
+    return method != Method::Unknown;
+  }
+
+  /**
    * @brief Check if method typically has a request body.
    *
-   * @param m HTTP method
+   * @param method HTTP method
    * @return true if method usually carries a body
    */
-  [[nodiscard]] constexpr bool has_request_body(Method m) noexcept
+  [[nodiscard]] constexpr bool has_request_body(Method method) noexcept
   {
-    switch (m)
+    switch (method)
     {
     case Method::Post:
     case Method::Put:
@@ -162,14 +190,39 @@ namespace cnerium::http
   }
 
   /**
+   * @brief Check if method is safe.
+   *
+   * Safe methods do not intend to modify server state.
+   *
+   * @param method HTTP method
+   * @return true if safe
+   */
+  [[nodiscard]] constexpr bool is_safe(Method method) noexcept
+  {
+    switch (method)
+    {
+    case Method::Get:
+    case Method::Head:
+    case Method::Options:
+    case Method::Trace:
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  /**
    * @brief Check if method is idempotent.
    *
-   * @param m HTTP method
-   * @return true if idempotent (safe for retries)
+   * Idempotent methods can be retried without changing the
+   * intended final state beyond the first successful call.
+   *
+   * @param method HTTP method
+   * @return true if idempotent
    */
-  [[nodiscard]] constexpr bool is_idempotent(Method m) noexcept
+  [[nodiscard]] constexpr bool is_idempotent(Method method) noexcept
   {
-    switch (m)
+    switch (method)
     {
     case Method::Get:
     case Method::Put:

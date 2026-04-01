@@ -2,7 +2,7 @@
  * @file Request.hpp
  * @brief cnerium::http — HTTP request object
  *
- * @version 0.1.0
+ * @version 0.2.0
  * @author Gaspard Kirira
  * @copyright (c) 2026 Gaspard Kirira
  * @license MIT
@@ -11,18 +11,21 @@
  * Defines the high-level HTTP request object used by the Cnerium framework.
  *
  * Responsibilities:
- *   - Store request method
- *   - Store request target path
- *   - Store request headers
- *   - Store request body
- *   - Provide convenient header access
- *   - Parse request body as JSON when needed
+ *   - store request method
+ *   - store request target path
+ *   - store request query string
+ *   - store request headers
+ *   - store request body
+ *   - provide convenient header access
+ *   - provide convenient request-target helpers
+ *   - parse request body as JSON when needed
  *
  * Notes:
- *   - This is a lightweight request model for framework-level handling.
+ *   - This is a lightweight request model for framework-level handling
  *   - Parsing of the raw HTTP wire format belongs to the server layer,
- *     not to this class.
- *   - JSON parsing is delegated to cnerium::json.
+ *     not to this class
+ *   - JSON parsing is delegated to cnerium::json
+ *   - Connection persistence decisions are handled by higher layers
  *
  * Usage:
  * @code
@@ -31,6 +34,7 @@
  *   Request req;
  *   req.set_method(Method::Post);
  *   req.set_path("/users");
+ *   req.set_query("active=true");
  *   req.set_header("Content-Type", "application/json");
  *   req.set_body(R"({"name":"Gaspard"})");
  *
@@ -69,7 +73,22 @@ namespace cnerium::http
      * @param path Request path
      */
     Request(Method method, std::string path)
-        : method_(method), path_(std::move(path))
+        : method_(method),
+          path_(std::move(path))
+    {
+    }
+
+    /**
+     * @brief Construct a request with method, path, and query string.
+     *
+     * @param method HTTP method
+     * @param path Request path
+     * @param query Raw query string without the leading '?'
+     */
+    Request(Method method, std::string path, std::string query)
+        : method_(method),
+          path_(std::move(path)),
+          query_(std::move(query))
     {
     }
 
@@ -96,7 +115,8 @@ namespace cnerium::http
     /**
      * @brief Returns the request path.
      *
-     * Example: /users/42
+     * Example:
+     *   /users/42
      *
      * @return std::string_view Request path
      */
@@ -113,6 +133,67 @@ namespace cnerium::http
     void set_path(std::string path)
     {
       path_ = std::move(path);
+    }
+
+    /**
+     * @brief Returns the raw query string.
+     *
+     * The returned value does not include the leading '?'.
+     *
+     * Example:
+     *   active=true&page=2
+     *
+     * @return std::string_view Raw query string
+     */
+    [[nodiscard]] std::string_view query() const noexcept
+    {
+      return query_;
+    }
+
+    /**
+     * @brief Sets the raw query string.
+     *
+     * The provided value must not include the leading '?'.
+     *
+     * @param query Raw query string
+     */
+    void set_query(std::string query)
+    {
+      query_ = std::move(query);
+    }
+
+    /**
+     * @brief Returns true if the request has a query string.
+     *
+     * @return true if query is not empty
+     */
+    [[nodiscard]] bool has_query() const noexcept
+    {
+      return !query_.empty();
+    }
+
+    /**
+     * @brief Returns the full request target.
+     *
+     * This reconstructs:
+     *   - path            when query is empty
+     *   - path?query      when query exists
+     *
+     * @return std::string Full request target
+     */
+    [[nodiscard]] std::string target() const
+    {
+      if (query_.empty())
+      {
+        return path_;
+      }
+
+      std::string out;
+      out.reserve(path_.size() + 1 + query_.size());
+      out += path_;
+      out.push_back('?');
+      out += query_;
+      return out;
     }
 
     /**
@@ -180,6 +261,16 @@ namespace cnerium::http
     }
 
     /**
+     * @brief Removes a header if present.
+     *
+     * @param key Header name
+     */
+    void remove_header(std::string_view key)
+    {
+      headers_.erase(key);
+    }
+
+    /**
      * @brief Returns the value of a header.
      *
      * Returns an empty string_view if the header is missing.
@@ -190,6 +281,26 @@ namespace cnerium::http
     [[nodiscard]] std::string_view header(std::string_view key) const noexcept
     {
       return headers_.get(key);
+    }
+
+    /**
+     * @brief Returns true if the request advertises Connection: close.
+     *
+     * @return true if the Connection header contains the token "close"
+     */
+    [[nodiscard]] bool connection_close() const noexcept
+    {
+      return header_contains_token(header("Connection"), "close");
+    }
+
+    /**
+     * @brief Returns true if the request advertises Connection: keep-alive.
+     *
+     * @return true if the Connection header contains the token "keep-alive"
+     */
+    [[nodiscard]] bool connection_keep_alive() const noexcept
+    {
+      return header_contains_token(header("Connection"), "keep-alive");
     }
 
     /**
@@ -217,12 +328,13 @@ namespace cnerium::http
     /**
      * @brief Clears the request content.
      *
-     * Resets method to GET and clears path, headers, and body.
+     * Resets method to GET and clears path, query, headers, and body.
      */
     void clear()
     {
       method_ = Method::Get;
       path_.clear();
+      query_.clear();
       headers_.clear();
       body_.clear();
     }
@@ -230,8 +342,114 @@ namespace cnerium::http
   private:
     Method method_{Method::Get};
     std::string path_{};
+    std::string query_{};
     HeaderMap headers_{};
     std::string body_{};
+
+    /**
+     * @brief Return true if a comma-separated header value contains a token.
+     *
+     * Matching is case-insensitive and trims surrounding ASCII whitespace.
+     *
+     * @param value Raw header value
+     * @param token Token to search
+     * @return true if token is present
+     */
+    [[nodiscard]] static bool header_contains_token(
+        std::string_view value,
+        std::string_view token) noexcept
+    {
+      while (!value.empty())
+      {
+        const auto comma = value.find(',');
+        const auto part = trim(
+            comma == std::string_view::npos
+                ? value
+                : value.substr(0, comma));
+
+        if (iequals(part, token))
+        {
+          return true;
+        }
+
+        if (comma == std::string_view::npos)
+        {
+          break;
+        }
+
+        value.remove_prefix(comma + 1);
+      }
+
+      return false;
+    }
+
+    /**
+     * @brief Trim ASCII whitespace from both ends of a string view.
+     *
+     * @param value Input view
+     * @return std::string_view Trimmed view
+     */
+    [[nodiscard]] static std::string_view trim(std::string_view value) noexcept
+    {
+      while (!value.empty() &&
+             (value.front() == ' ' || value.front() == '\t' ||
+              value.front() == '\r' || value.front() == '\n'))
+      {
+        value.remove_prefix(1);
+      }
+
+      while (!value.empty() &&
+             (value.back() == ' ' || value.back() == '\t' ||
+              value.back() == '\r' || value.back() == '\n'))
+      {
+        value.remove_suffix(1);
+      }
+
+      return value;
+    }
+
+    /**
+     * @brief Compare two ASCII strings case-insensitively.
+     *
+     * @param a First string
+     * @param b Second string
+     * @return true if equal ignoring ASCII case
+     */
+    [[nodiscard]] static bool iequals(
+        std::string_view a,
+        std::string_view b) noexcept
+    {
+      if (a.size() != b.size())
+      {
+        return false;
+      }
+
+      for (std::size_t i = 0; i < a.size(); ++i)
+      {
+        if (ascii_lower(a[i]) != ascii_lower(b[i]))
+        {
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    /**
+     * @brief Convert an ASCII character to lowercase.
+     *
+     * @param ch Input character
+     * @return char Lowercased character
+     */
+    [[nodiscard]] static char ascii_lower(char ch) noexcept
+    {
+      const unsigned char c = static_cast<unsigned char>(ch);
+      if (c >= 'A' && c <= 'Z')
+      {
+        return static_cast<char>(c - 'A' + 'a');
+      }
+      return static_cast<char>(c);
+    }
   };
 
 } // namespace cnerium::http
